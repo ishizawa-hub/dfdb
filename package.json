@@ -1,0 +1,39 @@
+{
+  "name": "dfdb",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "extract": "python scripts/extract-text.py",
+    "parse": "python scripts/parse-directors.py",
+    "import:dry": "npx tsx scripts/import-db.ts --dry-run",
+    "import:apply": "npx tsx scripts/import-db.ts --apply",
+    "fts:update": "npx tsx scripts/update-fts.ts",
+    "fts:init": "npx tsx scripts/init-fts.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.3.5",
+    "@types/react": "^19.2.14",
+    "better-sqlite3": "^12.6.2",
+    "next": "^16.1.6",
+    "postcss": "^8.5.8",
+    "prisma": "^5.22.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

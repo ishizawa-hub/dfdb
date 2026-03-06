@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Director {
+  id               Int      @id @default(autoincrement())
+  name             String
+  nameRomaji       String?
+  email            String?
+  phone            String?
+  company          String?
+  profile          String?
+  portraitImagePath String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  works            Work[]
+  yearSources      DirectorYearSource[]
+  profileHistories DirectorProfileHistory[]
+}
+
+model Work {
+  id            Int      @id @default(autoincrement())
+  directorId    Int
+  title         String
+  clientName    String?
+  productName   String?
+  agency        String?
+  year          Int?
+  sourceYear    String
+  youtubeUrl    String?
+  thumbnailPath String?
+
+  director Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+}
+
+model DirectorYearSource {
+  id         Int    @id @default(autoincrement())
+  directorId Int
+  sourceYear String
+  sourcePage Int?
+
+  director Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+
+  @@unique([directorId, sourceYear])
+}
+
+model DirectorProfileHistory {
+  id         Int    @id @default(autoincrement())
+  directorId Int
+  sourceYear String
+  profile    String
+
+  director Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+
+  @@unique([directorId, sourceYear])
+}
+
+model ImportBatch {
+  id          Int      @id @default(autoincrement())
+  sourceYear  String
+  status      String
+  inserted    Int      @default(0)
+  updated     Int      @default(0)
+  skipped     Int      @default(0)
+  reviewCount Int      @default(0)
+  createdAt   DateTime @default(now())
+}
