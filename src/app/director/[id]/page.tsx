@@ -33,6 +33,7 @@ interface DirectorDetail {
   email: string | null;
   phone: string | null;
   company: string | null;
+  website: string | null;
   profile: string | null;
   portraitImagePath: string | null;
   works: Work[];
@@ -182,6 +183,14 @@ export default function DirectorPage() {
               </a>
             </div>
           )}
+          {director.website && (
+            <div>
+              <div className="text-gray-400 text-xs mb-0.5">Webサイト</div>
+              <a href={director.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+                {director.website.replace(/^https?:\/\//, '')}
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Profile */}
@@ -266,7 +275,7 @@ export default function DirectorPage() {
                             {work.agency}
                           </div>
                         )}
-                        {work.year && (
+                        {work.year != null && work.year > 0 && (
                           <div className="text-xs text-gray-400 mt-1">{work.year}</div>
                         )}
 

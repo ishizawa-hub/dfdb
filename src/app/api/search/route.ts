@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       const directors = db.prepare(
         "SELECT d.*, " +
         "(SELECT GROUP_CONCAT(DISTINCT dys.sourceYear) FROM DirectorYearSource dys WHERE dys.directorId = d.id) as sourceYears " +
-        "FROM Director d ORDER BY d.name LIMIT ? OFFSET ?"
+        "FROM Director d ORDER BY COALESCE(d.nameRomaji, d.name) LIMIT ? OFFSET ?"
       ).all(limit, offset);
 
       return NextResponse.json({ directors, total, page, limit });
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const searchTerm = q.trim().split(/\s+/).map(t => `"${t}"`).join(" OR ");
 
     const ftsResults = db.prepare(
-      "SELECT director_id FROM director_fts WHERE director_fts MATCH ? LIMIT 500"
+      "SELECT rowid as director_id FROM director_fts WHERE director_fts MATCH ? LIMIT 500"
     ).all(searchTerm) as any[];
 
     if (ftsResults.length === 0) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         "FROM Director d LEFT JOIN Work w ON w.directorId = d.id " +
         "WHERE d.name LIKE ? OR d.nameRomaji LIKE ? OR d.profile LIKE ? " +
         "OR w.title LIKE ? OR w.clientName LIKE ? OR w.productName LIKE ? " +
-        "ORDER BY d.name LIMIT ? OFFSET ?"
+        "ORDER BY COALESCE(d.nameRomaji, d.name) LIMIT ? OFFSET ?"
       ).all(likePattern, likePattern, likePattern, likePattern, likePattern, likePattern, limit, offset);
 
       return NextResponse.json({ directors, total: directors.length, page, limit });
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const directors = db.prepare(
       `SELECT d.*, ` +
       `(SELECT GROUP_CONCAT(DISTINCT dys.sourceYear) FROM DirectorYearSource dys WHERE dys.directorId = d.id) as sourceYears ` +
-      `FROM Director d WHERE d.id IN (${ph2}) ORDER BY d.name`
+      `FROM Director d WHERE d.id IN (${ph2}) ORDER BY COALESCE(d.nameRomaji, d.name)`
     ).all(...pagedIds);
 
     return NextResponse.json({ directors, total, page, limit });

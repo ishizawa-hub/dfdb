@@ -14,6 +14,7 @@ model Director {
   email            String?
   phone            String?
   company          String?
+  website          String?
   profile          String?
   portraitImagePath String?
   createdAt        DateTime @default(now())
