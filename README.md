@@ -8,23 +8,39 @@ CM・映像ディレクターズファイルの検索サイト。PDFの年鑑デ
 - **Backend**: Next.js App Router API Routes
 - **DB**: SQLite (Prisma 5 + better-sqlite3) / FTS5全文検索
 - **データ抽出**: Python (PyMuPDF + Pillow)
+- **認証**: Basic Auth (パスワード: dfdb)
+
+## データ概要
+
+| 年度 | ディレクター数 | 作品数 |
+|------|--------------|--------|
+| 2023-2024 | 603 | 139 |
+| 2021-2022 | 510 | 204 |
+| 2020-2021 | 607 | 81 |
+| **合計(重複除外)** | **863** | **416** |
 
 ## セットアップ
 
 ```bash
-# 依存インストール
 npm install
-
-# .env作成
 cp .env.example .env
-
-# DB初期化
 npx prisma generate
-npx prisma db push
-
-# FTS5テーブル作成
-npx tsx scripts/init-fts.ts
+npm run dev
+# http://localhost:3000 (パスワード: dfdb)
 ```
+
+## デプロイ (Render.com)
+
+1. [Render.com](https://render.com) にGitHubアカウントでサインアップ
+2. Dashboard → **New** → **Web Service**
+3. GitHub リポジトリ `ishizawa-hub/dfdb` を接続
+4. 設定:
+   - **Runtime**: Docker
+   - **Environment Variables**: `BASIC_AUTH_PASSWORD` = `dfdb`
+5. **Create Web Service** をクリック
+
+デプロイ完了後、発行されたURLにアクセスするとBasic Auth認証画面が表示されます。
+ユーザー名は任意、パスワードは `dfdb` です。
 
 ## データパイプライン
 
@@ -44,24 +60,14 @@ npx tsx scripts/import-db.ts --year 2023-2024 --apply
 # 4. 写真抽出 (PDFからクロップ→WebP)
 python scripts/extract-images.py --year 2023-2024
 
-# 5. YouTube URL取得 (オプション、API KEY必要)
+# 5. 作品サムネイル抽出
+python scripts/extract-work-thumbnails.py --year 2023-2024
+
+# 6. FTSインデックス更新
+npx tsx scripts/update-fts.ts
+
+# 7. YouTube URL取得 (オプション、API KEY必要)
 npx tsx scripts/fetch-youtube.ts --year 2023-2024
-```
-
-### 処理済み年度
-
-| 年度 | ディレクター数 | 作品数 |
-|------|--------------|--------|
-| 2023-2024 | 609 | 139 |
-| 2021-2022 | 510 | 204 |
-| 2020-2021 | 609 | 81 |
-| **合計(重複除外)** | **932** | **424** |
-
-## 開発サーバー
-
-```bash
-npm run dev
-# http://localhost:3000
 ```
 
 ## 主要スクリプト
@@ -70,10 +76,6 @@ npm run dev
 |----------|------|
 | `npm run dev` | 開発サーバー起動 |
 | `npm run build` | プロダクションビルド |
-| `npm run extract` | PDFテキスト抽出 |
-| `npm run parse` | ディレクター情報パース |
-| `npm run import:dry` | DBインポート (dry-run) |
-| `npm run import:apply` | DBインポート (適用) |
 | `npm run fts:update` | FTSインデックス更新 |
 
 ## ディレクトリ構造
@@ -86,18 +88,26 @@ dfdb/
 │   │   ├── director/[id]/page.tsx # ディレクター詳細
 │   │   ├── api/search/route.ts   # 検索API
 │   │   └── api/directors/[id]/route.ts  # 詳細API
+│   ├── middleware.ts              # Basic Auth
 │   └── lib/db.ts                 # Prismaクライアント
 ├── scripts/
 │   ├── extract-text.py           # PDF→テキスト
 │   ├── parse-directors.py        # テキスト→構造化データ
 │   ├── import-db.ts              # 構造化データ→DB
 │   ├── extract-images.py         # PDF→写真(WebP)
+│   ├── extract-work-thumbnails.py # PDF→作品サムネイル
+│   ├── cleanup-data.js           # データクリーンアップ
 │   ├── fetch-youtube.ts          # YouTube URL取得
 │   ├── update-fts.ts             # FTSインデックス再構築
 │   └── init-fts.ts               # FTS5テーブル初期化
-├── prisma/schema.prisma          # データモデル
-├── data/                         # 中間データ（git除外）
-└── public/portraits/             # 写真（git除外）
+├── prisma/
+│   ├── schema.prisma             # データモデル
+│   └── dev.db                    # SQLiteデータベース
+├── public/
+│   ├── portraits/                # 監督写真(WebP)
+│   └── thumbnails/               # 作品サムネイル(WebP)
+├── Dockerfile                    # Docker デプロイ用
+└── render.yaml                   # Render.com デプロイ設定
 ```
 
 ## 新年度追加手順
@@ -106,9 +116,5 @@ dfdb/
 2. `extract-text.py`の`PDF_MAP`に追加
 3. パイプライン実行: extract → parse → import:dry → import:apply → extract-images
 4. 既存ディレクターは自動マージ（名前+メール/電話で同定）
-
-## 注意事項
-
-- PDFと抽出データ、DBファイルはgit管理外
-- `data/review/`にマージ確信度が中程度のケースが出力される
-- YouTube取得には`YOUTUBE_API_KEY`環境変数が必要
+5. `cleanup-data.js` でデータ品質チェック
+6. `update-fts.ts` でFTSインデックス再構築
