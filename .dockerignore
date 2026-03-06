@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+data/raw
+data/intermediate
+data/normalized
+data/final
+data/review
+*.pdf
