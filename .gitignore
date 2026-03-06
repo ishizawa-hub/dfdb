@@ -33,8 +33,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database
-prisma/dev.db
+# database journal
 prisma/dev.db-journal
 
 # source PDFs (large files)
@@ -47,5 +46,4 @@ prisma/dev.db-journal
 /data/final/
 /data/review/
 
-# portrait images (extracted from PDFs)
-/public/portraits/
+# (portraits and thumbnails included for deployment)

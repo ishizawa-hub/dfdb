@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: dfdb
+    runtime: node
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BASIC_AUTH_PASSWORD
+        value: dfdb
+      - key: DATABASE_URL
+        value: file:./dev.db
