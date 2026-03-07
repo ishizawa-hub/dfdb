@@ -225,12 +225,20 @@ export default function DirectorPage() {
                     : null;
                   const searchUrl = youtubeSearchUrl(work, director.name);
 
+                  // Build display line: クライアント名 | 商品名 | 作品タイトル
+                  const infoParts = [
+                    work.clientName,
+                    work.productName,
+                    work.title,
+                  ].filter(Boolean);
+                  const infoLine = infoParts.join(" | ");
+
                   return (
                     <div
                       key={work.id}
                       className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
                     >
-                      {/* Thumbnail */}
+                      {/* Thumbnail - always show if available */}
                       {work.thumbnailPath ? (
                         <div className="aspect-video bg-gray-100 overflow-hidden">
                           <img
@@ -239,18 +247,7 @@ export default function DirectorPage() {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                      ) : ytId ? (
-                        <div className="aspect-video">
-                          <iframe
-                            width="100%"
-                            height="100%"
-                            src={`https://www.youtube.com/embed/${ytId}`}
-                            title={work.title}
-                            allowFullScreen
-                            className="w-full h-full"
-                          />
-                        </div>
-                      ) : (
+                      ) : !ytId && (
                         <div className="aspect-video bg-gray-50 flex items-center justify-center">
                           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
                             <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
@@ -261,22 +258,35 @@ export default function DirectorPage() {
                         </div>
                       )}
 
-                      <div className="p-3">
-                        <div className="font-medium text-sm leading-tight mb-1 line-clamp-2">
-                          {work.title}
+                      {/* YouTube embed - shown SEPARATELY below thumbnail */}
+                      {ytId && (
+                        <div className="aspect-video">
+                          <iframe
+                            width="100%"
+                            height="100%"
+                            src={`https://www.youtube.com/embed/${ytId}`}
+                            title={work.title}
+                            allowFullScreen
+                            className="w-full h-full"
+                          />
                         </div>
-                        {work.clientName && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            {work.clientName}
-                          </div>
-                        )}
+                      )}
+
+                      <div className="p-3">
+                        {/* Line 1: クライアント名 | 商品名 | 作品タイトル */}
+                        <div className="font-medium text-sm leading-tight mb-1 line-clamp-2">
+                          {infoLine}
+                        </div>
+
+                        {/* Line 2: 制作体制 (agency/production team) */}
                         {work.agency && (
-                          <div className="text-xs text-gray-400 truncate">
+                          <div className="text-xs text-gray-500 truncate mb-1">
                             {work.agency}
                           </div>
                         )}
+
                         {work.year != null && work.year > 0 && (
-                          <div className="text-xs text-gray-400 mt-1">{work.year}</div>
+                          <div className="text-xs text-gray-400">{work.year}</div>
                         )}
 
                         {/* YouTube links */}
