@@ -13,16 +13,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className="bg-gray-50 text-gray-900 min-h-screen">
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="/" className="text-xl font-bold tracking-tight">
+      <body className="bg-[#0a0a0a] text-white min-h-screen">
+        <header className="bg-black/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" className="text-xl font-bold tracking-[0.15em] uppercase text-white hover:text-white/80 transition-colors">
               Directors File DB
             </a>
-            <span className="text-sm text-gray-500">社内限定</span>
+            <span className="text-xs text-white/40 tracking-widest uppercase">Internal</span>
           </div>
         </header>
-        <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+        <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
       </body>
     </html>
   );
