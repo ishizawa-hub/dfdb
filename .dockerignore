@@ -7,3 +7,8 @@ data/normalized
 data/final
 data/review
 *.pdf
+public/thumbnails
+public/thumbnails_v5
+public/thumbnails_v6
+scripts
+debug_ocr
