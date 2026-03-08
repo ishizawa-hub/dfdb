@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 const AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD || "dfdb";
 
 export function middleware(request: NextRequest) {
-  // Skip auth for static assets
+  // Skip auth for static assets and portraits/thumbnails
   if (
     request.nextUrl.pathname.startsWith("/_next") ||
-    request.nextUrl.pathname.startsWith("/favicon")
+    request.nextUrl.pathname.startsWith("/favicon") ||
+    request.nextUrl.pathname.startsWith("/portraits_v8") ||
+    request.nextUrl.pathname.startsWith("/thumbnails_v8")
   ) {
     return NextResponse.next();
   }

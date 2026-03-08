@@ -33,17 +33,25 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database journal
+# database journal/WAL
 prisma/dev.db-journal
+prisma/dev.db-shm
+prisma/dev.db-wal
 
 # source PDFs (large files)
 /source/*.pdf
 
 # data files (can be regenerated)
-/data/raw/
-/data/intermediate/
-/data/normalized/
-/data/final/
-/data/review/
+/data/
+/extracted_data/
+/debug_ocr/
 
-# (portraits and thumbnails included for deployment)
+# old v7 portraits/thumbnails (replaced by v8)
+/public/portraits/
+/public/thumbnails/
+
+# Claude/misc
+/.claude/
+NUL
+
+# (v8 portraits and thumbnails included for deployment)
