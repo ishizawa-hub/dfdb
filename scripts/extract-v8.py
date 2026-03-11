@@ -23,6 +23,7 @@ import json
 import re
 import argparse
 import time
+import unicodedata
 from pathlib import Path
 from PIL import Image
 import numpy as np
@@ -93,12 +94,73 @@ def log(msg, level="INFO"):
 
 
 # ============================================================
+# テキストクリーンアップ (OCR品質改善)
+# ============================================================
+
+def clean_span_text(text):
+    """
+    個々のスパンテキストをクリーンアップする。
+    2021-2022 PDFのOCRは文字間にスペースが入る問題がある。
+    """
+    if not text or not text.strip():
+        return text
+
+    # 1. NFKC正規化: 半角カナ→全角、全角英数→半角
+    text = unicodedata.normalize("NFKC", text)
+
+    # 2. 全角記号→半角
+    text = text.replace("\uff1a", ":").replace("\uff0c", ",")
+    text = text.replace("\uff0e", ".").replace("\uff08", "(").replace("\uff09", ")")
+    text = text.replace("\uff1b", ";").replace("\uff20", "@")
+    text = text.replace("\uff5e", "~")
+
+    # 3. スペース除去: 1文字ずつスペースで区切られたパターンを修正
+    #    例: "0 3 - 3 2 8 0 - 6 7 0 3" → "03-3280-6703"
+    #    例: "c r e a t o r s @ t a t e o k a" → "creators@tateoka"
+    tokens = text.split(" ")
+    if len(tokens) >= 4:
+        single_count = sum(1 for t in tokens if len(t) <= 1)
+        # 半数以上が1文字トークンなら全結合
+        if single_count >= len(tokens) * 0.5:
+            text = "".join(tokens)
+        else:
+            # 部分的なスペース除去: 1文字トークンの連続を結合
+            result = []
+            i = 0
+            while i < len(tokens):
+                if len(tokens[i]) <= 1 and i + 2 < len(tokens) and len(tokens[i+1]) <= 1:
+                    run = []
+                    j = i
+                    while j < len(tokens) and len(tokens[j]) <= 2:
+                        run.append(tokens[j])
+                        j += 1
+                    if len(run) >= 3:
+                        result.append("".join(run))
+                    else:
+                        result.extend(run)
+                    i = j
+                else:
+                    result.append(tokens[i])
+                    i += 1
+            text = " ".join(result)
+
+    # 4. OCR共通エラー修正
+    # 中黒(・)がドメインのドットの代わりに使われている場合を修正
+    text = re.sub(r"(\w)・(\w)", r"\1.\2", text)
+    # ﬃ → ffi (リガチャ)
+    text = text.replace("\ufb03", "ffi").replace("\ufb01", "fi").replace("\ufb02", "fl")
+
+    return text
+
+
+# ============================================================
 # テキストレイヤー処理
 # ============================================================
 
 def get_all_spans(page):
     """
     ページの全テキストスパンを位置情報付きで取得する。
+    テキストクリーンアップを適用。
 
     Returns:
         list of dict: [{x, y, x1, y1, size, text, font}, ...]
@@ -112,6 +174,10 @@ def get_all_spans(page):
         for line in block["lines"]:
             for span in line["spans"]:
                 text = span["text"]
+                if not text.strip():
+                    continue
+                # テキストクリーンアップ適用
+                text = clean_span_text(text)
                 if not text.strip():
                     continue
                 x0, y0 = span["origin"]
@@ -262,51 +328,98 @@ def extract_director_from_spans(col_spans):
         "works_raw": [],
     }
 
-    # === STEP 1: 名前エリア (Y < 50) のスパンを分類 ===
-    name_area_spans = []    # Y < 50 の全スパン
+    # === STEP 1: 名前エリア (Y < 55) のスパンを分類 ===
+    # ローマ字名がY=50-54付近に配置されるケースがあるため、上限を55に拡張
+    name_area_spans = []
 
     for s in col_spans:
-        if s["y"] >= 50:
+        if s["y"] >= 55:
             continue
         name_area_spans.append(s)
 
     # --- 漢字名の抽出 ---
-    # 全スパン（サイズ問わず）からCJK文字を収集
-    # ※ P13右のように漢字が複数サイズに分散しているケースに対応
+    # CJK文字を含むスパンを収集し、ポートレート領域のOCRノイズを除外
+    # ポートレートはカラム右側（x位置が名前より大幅に右）にあるため
+    # X位置が離れた孤立CJK文字はノイズとして除外する
     name_area_spans.sort(key=lambda s: s["x"])
-    all_cjk = ""
+
+    cjk_spans = []
     for s in name_area_spans:
-        if s["size"] >= 7.0:  # 極小フォントは除外
+        if s["size"] >= 3.5:  # 小さいカタカナ名(sz=4)も含む
             cjk = extract_cjk_chars(s["text"])
             if cjk:
-                all_cjk += cjk
+                cjk_spans.append({
+                    "x": s["x"], "cjk": cjk, "size": s["size"],
+                    "full_text": s["text"],  # 混合スクリプト名保持用
+                })
 
-    if len(all_cjk) >= 2:
-        result["name"] = all_cjk
+    # X位置でクラスタリング: 名前スパンとノイズスパンを分離
+    # 名前は通常カラムの左側、ノイズはポートレート領域（右側）
+    # カラム全体の最左端を基準にする（ASCII名のみの場合に対応）
+    if cjk_spans and name_area_spans:
+        col_min_x = min(s["x"] for s in name_area_spans)
+        cjk_spans = [cs for cs in cjk_spans if cs["x"] - col_min_x < 80]
+
+    if cjk_spans:
+        # 最大サイズのスパンを優先（名前は大フォント）
+        best_span = max(cjk_spans, key=lambda cs: cs["size"])
+        full = best_span["full_text"]
+        # 混合スクリプト名を保持: CJK+ASCII混在は全文使用
+        has_cjk = bool(re.search(r'[\u3000-\u9fff\u30a0-\u30ff\u3040-\u309f]', full))
+        ascii_letters = re.findall(r'[A-Za-z]', full)
+        # 意図的な混合名: 2種以上のASCII文字が3文字以上 (OCRノイズ"III"等を除外)
+        has_ascii = len(ascii_letters) >= 3 and len(set(ascii_letters)) >= 2
+        if has_cjk and has_ascii:
+            # "あの田中／あのTKC" 等: 全文を名前として使用
+            result["name"] = re.sub(r'\s+', '', full).strip()
+        elif len(cjk_spans) == 1:
+            result["name"] = best_span["cjk"]
+        else:
+            # 複数スパンからCJK文字を結合
+            all_cjk = "".join(cs["cjk"] for cs in cjk_spans)
+            if len(all_cjk) >= 2:
+                result["name"] = all_cjk
     elif name_area_spans:
+        pass  # fall through to romaji/large span fallback
+
+    if not result["name"] and name_area_spans:
         # CJK文字が少ない場合（"A.T."のようなケース）
-        # 大フォントスパンのテキストを使う
-        large_spans = [s for s in name_area_spans if s["size"] >= 9.0]
+        # 大フォントスパンのテキストを使う（ポートレート領域を除外）
+        col_min_x = min(s["x"] for s in name_area_spans)
+        large_spans = [s for s in name_area_spans
+                       if s["size"] >= 9.0 and s["x"] - col_min_x < 80]
         if large_spans:
             raw_name = "".join(s["text"] for s in large_spans)
-            clean_name = re.sub(r'[^\w\s.\-]', '', raw_name).strip()
+            clean_name = re.sub(r'[^\w\s.\-/]', '', raw_name).strip()
             if clean_name and len(clean_name) >= 2:
                 result["name"] = clean_name
 
     # --- ローマ字名の抽出 ---
+    # まず小フォントのローマ字スパンを探す (通常ケース)
     romaji_spans = [s for s in name_area_spans if s["size"] < 8 and s["y"] > 30]
     if romaji_spans:
         romaji_spans.sort(key=lambda s: s["x"])
         romaji = " ".join(s["text"] for s in romaji_spans).strip()
-        # encoding artifacts修正
         romaji = romaji.replace(";", "i").replace(",", "i")
         romaji = re.sub(r'\s+', ' ', romaji).strip()
         if re.search(r'[A-Za-z]{3,}', romaji):
             result["nameRomaji"] = romaji
 
+    # 名前がCJK(小フォント)で、大フォントASCIIスパンがある場合
+    # → ASCIIスパンをローマ字名として使用
+    if not result["nameRomaji"] and result["name"]:
+        ascii_spans = [s for s in name_area_spans
+                       if s["size"] >= 8 and re.search(r'[A-Za-z]{3,}', s["text"])]
+        if ascii_spans:
+            ascii_spans.sort(key=lambda s: s["x"])
+            romaji = " ".join(s["text"] for s in ascii_spans).strip()
+            romaji = re.sub(r'\s+', ' ', romaji).strip()
+            if re.search(r'[A-Za-z]{3,}', romaji):
+                result["nameRomaji"] = romaji
+
     # === STEP 2: 連絡先・プロフィール・作品をライン単位で処理 ===
-    # Y >= 50 のスパンのみ
-    body_spans = [s for s in col_spans if s["y"] >= 50]
+    # Y >= 55 のスパンのみ（名前エリアと重複しないよう）
+    body_spans = [s for s in col_spans if s["y"] >= 55]
     lines = reconstruct_lines(body_spans)
 
     for line in lines:
@@ -315,7 +428,7 @@ def extract_director_from_spans(col_spans):
         max_size = line["max_size"]
 
         # --- 連絡先エリア (Y 50-135) ---
-        if 50 <= y < CONTACT_Y_MAX:
+        if 55 <= y < CONTACT_Y_MAX:
             # 電話番号
             phone_match = re.search(r'(\d{2,4}[-ー]\d{2,4}[-ー]\d{3,4})', text)
             if phone_match:
@@ -946,7 +1059,7 @@ def process_pdf(year, config, max_pages=None):
             all_directors.extend(directors)
 
             if directors:
-                names = ", ".join([d["name"][:8] for d in directors])
+                names = ", ".join([d["name"][:15] for d in directors])
                 log(f"  P{page_num}: {len(directors)} [{names}]")
         except Exception as e:
             log(f"  P{page_num}: ERROR - {e}", "ERROR")

@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 const AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD || "dfdb";
 
 export function middleware(request: NextRequest) {
+  // Skip auth in local development
+  if (process.env.NODE_ENV === "development") {
+    return NextResponse.next();
+  }
+
   // Skip auth for static assets and portraits/thumbnails
   if (
     request.nextUrl.pathname.startsWith("/_next") ||

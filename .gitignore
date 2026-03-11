@@ -33,8 +33,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database
-prisma/dev.db
+# database (journal files only)
 prisma/dev.db-journal
 prisma/dev.db-shm
 prisma/dev.db-wal
@@ -55,6 +54,4 @@ prisma/dev.db-wal
 /.claude/
 NUL
 
-# v8 portraits/thumbnails
-/public/portraits_v8/
-/public/thumbnails_v8/
+# v8 portraits/thumbnails (included for deploy)
